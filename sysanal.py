@@ -8,6 +8,9 @@ import datetime
 import os
 import sys
 import psutil
+import threading
+import time
+import re 
 
 BANNER = """                                      __
    _______  ___________ _____  ____ _/ /
@@ -18,7 +21,7 @@ BANNER = """                                      __
 """
 
 NAME = "sysanal"
-VERSION = [0, 1, 0]
+VERSION = [0, 2, 0]
 NAME_WITH_VERSION = "sysanal " + ".".join([str(x) for x in VERSION])
 
 print(BANNER)
@@ -26,7 +29,13 @@ print(f"Evgeny Vasilievich (https://evgvs.com/) {NAME_WITH_VERSION}")
 print("Running report now...")
 
 
+global report 
 report = {}
+
+
+# notice, warning, alert, alarm
+report["problems"] = []
+
 
 ######################################
 #                                    #
@@ -49,8 +58,55 @@ try:
 except OSError:
     pass
 
-
 report["system"]["python"] = platform.python_version()
+report["system"]["memory"] = psutil.virtual_memory()._asdict()
+report["system"]["swap"] = psutil.swap_memory()._asdict()
+
+cpufreq = psutil.cpu_freq()
+
+def get_processor_name():
+    if platform.system() == "Windows":
+        return platform.processor()
+    elif platform.system() == "Darwin":
+        return subprocess.check_output("sysctl -n machdep.cpu.brand_string").strip()
+    elif platform.system() == "Linux":
+        command = "cat /proc/cpuinfo"
+        all_info = subprocess.check_output(command, shell=True).decode().strip()
+        for line in all_info.split("\n"):
+            if "model name" in line:
+                return re.sub( ".*model name.*:", "", line,1)
+    return ""
+
+report["system"]["cpu"] = {
+    "name": get_processor_name(),
+    "arch": platform.machine(),
+    "threads": psutil.cpu_count(logical=True),
+    "cores": psutil.cpu_count(logical=False), 
+    "freq_min": cpufreq.min,
+    "freq_max": cpufreq.max,
+    "freq_current": round(cpufreq.current, 1)
+}
+
+
+
+def get_cpu_percent():
+    interval = 1
+    cpu = psutil.cpu_percent(interval=interval)
+    report["system"]["cpu"]["percent"] = cpu
+    if cpu > 0.95:
+        report["problems"].append(
+            {
+                "class": "notice",
+                "id": "notice-cpu-overload",
+                "header": f"High CPU usage",
+                "desc": f"CPU usage is high: {cpu}% (avg {interval}s)."
+            }
+        )
+    
+
+get_cpu_percent_thread = threading.Thread(target=get_cpu_percent)
+get_cpu_percent_thread.start()
+
 
 pkgs = []
 
@@ -95,11 +151,11 @@ pairs = [
 ]
 
 for pair in pairs:
-    # try:
-    if shutil.which(pair[0]):
-        pkgs.append([pair[0], get_lines_count(pair[1])])
-    # except:
-    #    pass
+    try:
+        if shutil.which(pair[0]):
+            pkgs.append([pair[0], get_lines_count(pair[1])])
+    except:
+        pass
 
 
 def format_timedelta(seconds):
@@ -132,8 +188,6 @@ report["system"]["uptime"] = format_timedelta(
 
 report["sensors"] = {}
 report["sensors"]["thermal"] = []
-
-# TODO: add overheat warnings
 
 temps = psutil.sensors_temperatures()
 if temps:
@@ -171,18 +225,11 @@ if temps:
         report["sensors"]["thermal"].append(obj)
 
 
-####################
-#                  #
-#     PROBLEMS     #
-#                  #
-####################
-
-
-print("Diagnosting problems...")
-# info, warning, alert, alarm
-
-report["problems"] = []
-
+#####################
+#                   #
+#   SOME PROBLEMS   #
+#                   #
+#####################
 
 try:
     distro = str(platform.freedesktop_os_release()[
@@ -200,6 +247,7 @@ try:
         report["problems"].append(
             {
                 "class": "warning",
+                "id": "warning-shitty-linux-distro",
                 "header": "Shitty Linux distribution",
                 "desc": f"A shitty Linux distribution was detected ({found}). This operating system is unstable, its behavior is unpredictable and it is not recommended for any kind of usage."
             }
@@ -212,6 +260,7 @@ if not os.path.exists("/run/systemd/system") and platform.system() == "Linux":
     report["problems"].append(
         {
             "class": "warning",
+            "id": "warning-legacy-init-system",
             "header": "Legacy init system",
             "desc": "Running Linux, but init system is not systemd. Install systemd to improve system stability, security and convenience."
         }
@@ -225,6 +274,7 @@ for sensor in report["sensors"]["thermal"]:
                 report["problems"].append(
                     {
                         "class": "alert",
+                        "id": "alert-overheat",
                         "header": f"{sensor['name']} {entry['name']} critical overheating",
                         "desc": f"Temperature of {sensor['name']} {entry['name']} is {entry['current']}, critical temperature is {entry['critical']} ({entry['critical_percent']*100}%)"
                     }
@@ -233,6 +283,7 @@ for sensor in report["sensors"]["thermal"]:
                 report["problems"].append(
                     {
                         "class": "warning",
+                        "id": "warning-overheat",
                         "header": f"{sensor['name']} {entry['name']} severe overheating",
                         "desc": f"Temperature of {sensor['name']} {entry['name']} is {entry['current']}, critical temperature is {entry['critical']} ({entry['critical_percent']*100}%)"
                     }
@@ -284,15 +335,31 @@ if os.path.exists("/run/systemd/system") and platform.system() == "Linux":
             report["problems"].append(
                 {
                     "class": "warning",
+                    "id": "warning-systemd-unit-failed",
                     "header": f"{unit['unit']} failed",
                     "desc": f"systemd unit {unit['unit']} has failed."
                 }
             )
         
     report["systemd"]["failed"] = parse_serives_list(s)
+    report["systemd"]["security"] = json.loads(subprocess.run(['systemd-analyze', 'security', '--json=pretty', '--no-pager'],
+                       stdout=subprocess.PIPE).stdout.decode())
+    
+    for unit in report["systemd"]["security"]:
+        if unit['predicate'] == "UNSAFE":
+            report["problems"].append(
+                {
+                    "class": "notice",
+                    "id": "notice-systemd-unit-unsafe",
+                    "header": f"{unit['unit']} is unsafe",
+                    "desc": f"systemd unit {unit['unit']} is unsafe with exposure {unit['exposure']}/10.0(systemd-analyze security)."
+                }
+            )
+        
 
+get_cpu_percent_thread.join()
 
-print(json.dumps(report, indent=4))
+#print(json.dumps(report, indent=4))
 
 f = open("report.json", "w+")
 f.write(json.dumps(report, indent=4))
