@@ -21,7 +21,7 @@ BANNER = """                                      __
 """
 
 NAME = "sysanal"
-VERSION = [0, 2, 0]
+VERSION = [0, 2, 1]
 NAME_WITH_VERSION = "sysanal " + ".".join([str(x) for x in VERSION])
 
 print(BANNER)
@@ -48,8 +48,21 @@ report["system"]["name"] = platform.system()
 report["system"]["release"] = platform.release()
 report["system"]["platform"] = platform.platform()
 
+def get_os_release():
+    try:
+        return platform.freedesktop_os_release()
+    except:
+        try:
+            f = open("/etc/os-release")
+            obj = {}
+            for line in f.read().strip().replace('"', '').split("\n"):
+                obj[line.split('=')[0]] = line.split('=')[1]
+            return obj
+        except:
+            raise OSError
+
 try:
-    report["system"]["distro"] = platform.freedesktop_os_release()["NAME"]
+    report["system"]["distro"] = get_os_release()["NAME"]
 except OSError:
     pass
 
@@ -232,8 +245,8 @@ if temps:
 #####################
 
 try:
-    distro = str(platform.freedesktop_os_release()[
-                 "PRETTY_NAME"] or platform.freedesktop_os_release()["NAME"]).lower()
+    distro = str(get_os_release()[
+                 "PRETTY_NAME"] or get_os_release()["NAME"]).lower()
 
     shitty_distro_list = ["manjaro", "zorin", "endeavour", "garuda", "mx linux", "nobara",
                           "antix", "solus", "pop!_os", "artix", "void", "arcolinux", "cachyos"]
