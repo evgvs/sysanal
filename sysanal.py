@@ -364,15 +364,16 @@ def parse_serives_list(stdout):
     svs = []
     for service in stdout:
         service = list(filter(None, service.split(" ")))
-        svs.append(
-            {
-                "unit": service[0],
-                "load": service[1],
-                "active": service[2],
-                "sub": service[3],
-                "description": " ".join(service[4:])
-            }
-        )
+        if len(service) > 4:
+            svs.append(
+                {
+                    "unit": service[0],
+                    "load": service[1],
+                    "active": service[2],
+                    "sub": service[3],
+                    "description": " ".join(service[4:])
+                }
+            )
     return svs
 
 if os.path.exists("/run/systemd/system") and platform.system() == "Linux":
