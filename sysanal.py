@@ -21,7 +21,7 @@ BANNER = """                                      __
 """
 
 NAME = "sysanal"
-VERSION = [0, 2, 2]
+VERSION = [0, 3, 0]
 NAME_WITH_VERSION = "sysanal " + ".".join([str(x) for x in VERSION])
 
 print(BANNER)
@@ -149,6 +149,26 @@ try:
             lst.append(a)
                 
         report["system"]["pci"].append(lst)
+except:
+    pass
+
+report["system"]["usb"] = []
+try:
+    s = subprocess.run(['lsusb'],
+                       stdout=subprocess.PIPE).stdout.decode().strip().split('\n')
+    for line in s:
+        line = line.split()
+        lst = [line[1], line[3].replace(':', ''), line[5], " ".join(line[6:])]
+                
+        report["system"]["usb"].append(lst)
+except:
+    pass
+
+try:
+    s = json.loads(subprocess.run(['lsblk', '--json'],
+                       stdout=subprocess.PIPE).stdout.decode())
+
+    report["system"]["blockdevices"] = s["blockdevices"]
 except:
     pass
 
