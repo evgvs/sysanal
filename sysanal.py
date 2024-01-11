@@ -21,7 +21,7 @@ BANNER = """                                      __
 """
 
 NAME = "sysanal"
-VERSION = [0, 2, 1]
+VERSION = [0, 2, 2]
 NAME_WITH_VERSION = "sysanal " + ".".join([str(x) for x in VERSION])
 
 print(BANNER)
@@ -120,6 +120,37 @@ def get_cpu_percent():
 get_cpu_percent_thread = threading.Thread(target=get_cpu_percent)
 get_cpu_percent_thread.start()
 
+report["system"]["mountpoints"] = []
+
+for part in psutil.disk_partitions(all=True):
+    try:
+        part = part._asdict()
+        part["usage"] = psutil.disk_usage(part["mountpoint"])._asdict()
+        report["system"]["mountpoints"].append(part)
+    except PermissionError:
+        pass
+
+
+def get_text_from_brackets(str):
+    result = []
+    for m in re.finditer(r'"(.*?)"', str):
+        result.append(m.group(1))
+    return result
+
+
+report["system"]["pci"] = []
+try:
+    s = subprocess.run(['lspci', '-mm'],
+                       stdout=subprocess.PIPE).stdout.decode().strip().split('\n')
+    for line in s:
+        lst = []
+        lst.append(line.split()[0])
+        for a in get_text_from_brackets(line):
+            lst.append(a)
+                
+        report["system"]["pci"].append(lst)
+except:
+    pass
 
 pkgs = []
 
