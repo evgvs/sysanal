@@ -358,6 +358,13 @@ def get_full_report(cpu_percent_interval=1):
     #                 #
     ###################
 
+    try:
+        s = json.loads(subprocess.run(['hostnamectl', '--json=pretty'],
+                                      stdout=subprocess.PIPE).stdout.decode())
+        report["hostname"] = s
+    except:
+        pass
+
     if os.path.exists("/run/systemd/system") and platform.system() == "Linux":
         report["systemd"] = {}
         s = subprocess.run(['systemctl', 'list-units', '--state=running', '--plain', '--no-legend', '--no-pager'],
@@ -426,7 +433,7 @@ def main():
 """
 
     NAME = "sysanal"
-    VERSION = [0, 3, 1]
+    VERSION = [0, 3, 2]
     NAME_WITH_VERSION = "sysanal " + ".".join([str(x) for x in VERSION])
 
     if sys.argv.__len__() > 1:
@@ -445,7 +452,7 @@ def main():
     f = open("report.json", "w+")
     f.write(json.dumps(report, indent=4))
     f.close()
-    print("\nReport written to report.json")
+    print("Report written to report.json")
 
 
 if __name__ == "__main__":
