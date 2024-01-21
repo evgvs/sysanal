@@ -303,20 +303,16 @@ def get_full_report(cpu_percent_interval=1):
         shitty_distro_list = ["manjaro", "zorin", "endeavour", "garuda", "mx linux", "nobara",
                               "antix", "solus", "pop!_os", "artix", "void", "arcolinux", "cachyos"]
 
-        found = ""
         for shit in shitty_distro_list:
             if shit in distro:
-                found = shit
-
-        if found:
-            report["problems"].append(
-                {
-                    "class": "warning",
-                    "id": "warning-shitty-linux-distro",
-                    "header": "Shitty Linux distribution",
-                    "desc": f"A shitty Linux distribution was detected ({found}). This operating system is unstable, its behavior is unpredictable and it is not recommended for any kind of usage."
-                }
-            )
+                report["problems"].append(
+                    {
+                        "class": "warning",
+                        "id": "warning-shitty-linux-distro",
+                        "header": "Shitty Linux distribution",
+                        "desc": f"A shitty Linux distribution was detected ({distro}). This operating system is unstable, its behavior is unpredictable and it is not recommended for any kind of usage."
+                    }
+                )
     except OSError:
         pass
 
