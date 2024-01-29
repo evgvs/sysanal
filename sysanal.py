@@ -103,7 +103,6 @@ def get_processor_name():
 
 
 def get_cpu_percent(interval=1):
-    interval = 1
     cpu = psutil.cpu_percent(interval=interval)
     return cpu
 
@@ -429,7 +428,7 @@ def main():
 """
 
     NAME = "sysanal"
-    VERSION = [0, 3, 2]
+    VERSION = [0, 3, 3]
     NAME_WITH_VERSION = "sysanal " + ".".join([str(x) for x in VERSION])
 
     if sys.argv.__len__() > 1:
@@ -443,7 +442,7 @@ def main():
     print(f"Evgeny Vasilievich (https://evgvs.com/) {NAME_WITH_VERSION}")
     print("Running report now...")
 
-    report = get_full_report(cpu_percent_interval=1)
+    report = get_full_report(cpu_percent_interval=3)
 
     f = open("report.json", "w+")
     f.write(json.dumps(report, indent=4))
